@@ -46,6 +46,7 @@
 | GPIO 20 | CTP_SCL               |
 | GPIO 38 | CTP_RST               |
 
+Hardware Mod needed for Capacitive TouchScreen only (8048S070C).
 - Install a 0 ohm resistor or solder bridge across R17. This connects the GT911’s INT pin to GPIO18.
 - (If installed) Remove (pull-up) resistor R5 (GPIO18 to 3V3). The 
   GT911’s INT pin is not strong enough to drive GPIO18 low with this 
