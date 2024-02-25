@@ -287,9 +287,9 @@ void setup() {
   gfx->fillScreen(BLACK);
   gfx->setTextSize(4);
 
-  ledcSetup(0, 2000, 8);
+  ledcSetup(0, 10000, 8);
   ledcAttachPin(BL_PIN, 0);
-  ledcWrite(0, 64);
+  ledcWrite(0, 150);
 
   initSD();
 
@@ -311,86 +311,84 @@ void setup() {
   lastY = -1;
 }
 
-void loop() { delay(1); }
+void loop() {
 
-// void loop() {
+  if (bbct.getSamples(&ti)) {
+    for (int i = 0; i < ti.count; i++) {
+      Serial.print("Touch ");
+      Serial.print(i + 1);
+      Serial.print(": ");
+      Serial.print("  x: ");
+      Serial.print(ti.x[i]);
+      Serial.print("  y: ");
+      Serial.println(ti.y[i]);
+      if (lastY >= 0) {
+        y_offset -= (ti.y[i] - lastY) * (gfx->height() / (float)TOUCH_MAX_Y);
+        y_offset = y_offset % gfx->height();
+        Serial.print("Offset: ");
+        Serial.println(y_offset);
+        gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + y_offset * gfx->width(), gfx->width(), gfx->height());
+      }
+      lastY = ti.y[i];
+      timer = millis();
+    }
+  } else {
+    // Touch ended so scroll to the nearest image
+    if (y_offset != 0) {
+      if (y_offset < -gfx->height() / 2) {
+        Serial.println("Going Back");
+        for (int16_t i = y_offset - (y_offset % 16); i >= -gfx->height(); i -= 16) {
+          gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + i * gfx->width(), gfx->width(), gfx->height());
+        }
+        memcpy(fb + 2 * FB_SIZE, fb + FB_SIZE, FB_SIZE * sizeof(uint16_t));
+        memcpy(fb + FB_SIZE, fb, FB_SIZE * sizeof(uint16_t));
+        currentIndex--;
+        loadImage(currentIndex - 1, fb);
+      } else if (y_offset < 0) {
+        Serial.println("Stay forward");
+        for (int16_t i = y_offset + (16 - (y_offset % 16)); i <= 0; i += 16) {
+          gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + i * gfx->width(), gfx->width(), gfx->height());
+        }
+      } else if (y_offset < gfx->height() / 2) {
+        Serial.println("Stay back");
+        for (int16_t i = y_offset - (y_offset % 16); i >= 0; i -= 16) {
+          gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + i * gfx->width(), gfx->width(), gfx->height());
+        }
+      } else {
+        Serial.println("Going forward");
+        for (int16_t i = y_offset + (16 - (y_offset % 16)); i <= gfx->height(); i += 16) {
+          gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + i * gfx->width(), gfx->width(), gfx->height());
+        }
+        memcpy(fb, fb + FB_SIZE, FB_SIZE * sizeof(uint16_t));
+        memcpy(fb + FB_SIZE, fb + 2 * FB_SIZE, FB_SIZE * sizeof(uint16_t));
+        currentIndex++;
+        loadImage(currentIndex + 1, fb + 2 * FB_SIZE);
+      }
+      timer = millis();
+    }
+    y_offset = 0;
+    lastY = -1;
+  }
 
-//   if (bbct.getSamples(&ti)) {
-//     for (int i = 0; i < ti.count; i++) {
-//       Serial.print("Touch ");
-//       Serial.print(i + 1);
-//       Serial.print(": ");
-//       Serial.print("  x: ");
-//       Serial.print(ti.x[i]);
-//       Serial.print("  y: ");
-//       Serial.println(ti.y[i]);
-//       if (lastY >= 0) {
-//         y_offset -= (ti.y[i] - lastY) * (gfx->height() / (float)TOUCH_MAX_Y);
-//         y_offset = y_offset % gfx->height();
-//         Serial.print("Offset: ");
-//         Serial.println(y_offset);
-//         gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + y_offset * gfx->width(), gfx->width(), gfx->height());
-//       }
-//       lastY = ti.y[i];
-//       timer = millis();
-//     }
-//   } else {
-//     // Touch ended so scroll to the nearest image
-//     if (y_offset != 0) {
-//       if (y_offset < -gfx->height() / 2) {
-//         Serial.println("Going Back");
-//         for (int16_t i = y_offset - (y_offset % 16); i >= -gfx->height(); i -= 16) {
-//           gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + i * gfx->width(), gfx->width(), gfx->height());
-//         }
-//         memcpy(fb + 2 * FB_SIZE, fb + FB_SIZE, FB_SIZE * sizeof(uint16_t));
-//         memcpy(fb + FB_SIZE, fb, FB_SIZE * sizeof(uint16_t));
-//         currentIndex--;
-//         loadImage(currentIndex - 1, fb);
-//       } else if (y_offset < 0) {
-//         Serial.println("Stay forward");
-//         for (int16_t i = y_offset + (16 - (y_offset % 16)); i <= 0; i += 16) {
-//           gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + i * gfx->width(), gfx->width(), gfx->height());
-//         }
-//       } else if (y_offset < gfx->height() / 2) {
-//         Serial.println("Stay back");
-//         for (int16_t i = y_offset - (y_offset % 16); i >= 0; i -= 16) {
-//           gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + i * gfx->width(), gfx->width(), gfx->height());
-//         }
-//       } else {
-//         Serial.println("Going forward");
-//         for (int16_t i = y_offset + (16 - (y_offset % 16)); i <= gfx->height(); i += 16) {
-//           gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + i * gfx->width(), gfx->width(), gfx->height());
-//         }
-//         memcpy(fb, fb + FB_SIZE, FB_SIZE * sizeof(uint16_t));
-//         memcpy(fb + FB_SIZE, fb + 2 * FB_SIZE, FB_SIZE * sizeof(uint16_t));
-//         currentIndex++;
-//         loadImage(currentIndex + 1, fb + 2 * FB_SIZE);
-//       }
-//       timer = millis();
-//     }
-//     y_offset = 0;
-//     lastY = -1;
-//   }
+  // Next image after 10 seconds or if button is pressed
+  if ((millis() - timer > 10 * 1000) || (digitalRead(0) == LOW)) {
+    for (int16_t i = 0; i <= gfx->height(); i += 16) {
+      gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + i * gfx->width(), gfx->width(), gfx->height());
+    }
+    memcpy(fb, fb + FB_SIZE, FB_SIZE * sizeof(uint16_t));
+    memcpy(fb + FB_SIZE, fb + 2 * FB_SIZE, FB_SIZE * sizeof(uint16_t));
+    currentIndex++;
+    loadImage(currentIndex + 1, fb + 2 * FB_SIZE);
+    timer = millis();
+  } else {
+    delay(50);
+  }
 
-//   // Next image after 10 seconds or if button is pressed
-//   if ((millis() - timer > 10 * 1000) || (digitalRead(0) == LOW)) {
-//     for (int16_t i = 0; i <= gfx->height(); i += 16) {
-//       gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + i * gfx->width(), gfx->width(), gfx->height());
-//     }
-//     memcpy(fb, fb + FB_SIZE, FB_SIZE * sizeof(uint16_t));
-//     memcpy(fb + FB_SIZE, fb + 2 * FB_SIZE, FB_SIZE * sizeof(uint16_t));
-//     currentIndex++;
-//     loadImage(currentIndex + 1, fb + 2 * FB_SIZE);
-//     timer = millis();
-//   } else {
-//     delay(50);
-//   }
-
-//   if (currentIndex < 0) {
-//     // Going backwards
-//     currentIndex += fileCount;
-//   } else if (currentIndex >= fileCount) {
-//     // Starting from the beginning again
-//     currentIndex -= fileCount;
-//   }
-// }
+  if (currentIndex < 0) {
+    // Going backwards
+    currentIndex += fileCount;
+  } else if (currentIndex >= fileCount) {
+    // Starting from the beginning again
+    currentIndex -= fileCount;
+  }
+}
