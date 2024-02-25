@@ -247,7 +247,7 @@ void loadImage(int16_t targetIndex, uint16_t *targetFb) {
   initSD();
 }
 
-void loadImageFiles(int16_t targetIndex, uint16_t *targetFb, const char *filename) {
+int loadImageFiles(int16_t targetIndex, uint16_t *targetFb, const char *filename) {
   FsFile entry;
   char name[100];
   while (entry.openNext(&root)) {
@@ -278,8 +278,11 @@ void loadImageFiles(int16_t targetIndex, uint16_t *targetFb, const char *filenam
     Serial.println(millis() - start);
 
     entry.close();
-    return;
+    return 1;
   }
+  Serial.print("Could not find ");
+  Serial.println(filename);
+  return 0;
 }
 
 void setup() {
@@ -352,6 +355,6 @@ void loop() {
   delay(5000);
   gfx->fillScreen(BLACK);
   delay(5000);
-  loadImageFiles(0, fb, "octotat.jpg");
-  gfx->draw16bitRGBBitmap(0, 0, fb, gfx->width(), gfx->height());
+  if (loadImageFiles(0, fb, "octotat2.jpg"))
+    gfx->draw16bitRGBBitmap(0, 0, fb, gfx->width(), gfx->height());
 }
