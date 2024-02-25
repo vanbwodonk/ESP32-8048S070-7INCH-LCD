@@ -19,6 +19,8 @@
 #define TOUCH_MAX_X 480
 #define TOUCH_MAX_Y 272
 
+#define JPEG_FILENAME "/octocat.jpg"
+
 // Static instance of the JPEGDEC structure. It requires about
 // 17.5K of RAM. You can allocate it dynamically too. Internally it
 // does not allocate or free any memory; all memory management decisions
@@ -245,6 +247,41 @@ void loadImage(int16_t targetIndex, uint16_t *targetFb) {
   initSD();
 }
 
+void loadImageFiles(int16_t targetIndex, uint16_t *targetFb, const char *filename) {
+  FsFile entry;
+  char name[100];
+  while (entry.openNext(&root)) {
+    if (entry.isDirectory()) {
+      entry.close();
+      continue;
+    }
+    entry.getName(name, sizeof(name));
+    const int len = strlen(name);
+    if (strcasecmp(name, filename) == 0) {
+      entry.close();
+      continue;
+    }
+
+    Serial.print("File: ");
+    Serial.println(name);
+    Serial.print("Size: ");
+    Serial.println(entry.size());
+
+    uint32_t start = millis();
+    cacheFile(entry);
+    Serial.print("Cached: ");
+    Serial.println(millis() - start);
+
+    start = millis();
+    decodeJpeg(targetFb);
+    Serial.print("Decoded: ");
+    Serial.println(millis() - start);
+
+    entry.close();
+    return;
+  }
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -278,7 +315,7 @@ void setup() {
   }
 
   // alloc 3*FB_SIZE for scrolling left+right
-  fb = (uint16_t *)ps_malloc(3 * FB_SIZE * sizeof(uint16_t));
+  fb = (uint16_t *)ps_malloc(FB_SIZE * sizeof(uint16_t));
   file_cache = (uint8_t *)ps_malloc(CACHE_SIZE);
 
   bbct.init(TOUCH_GT911_SDA, TOUCH_GT911_SCL, TOUCH_GT911_RST, TOUCH_GT911_INT);
@@ -294,12 +331,12 @@ void setup() {
   initSD();
 
   // Draw first image ASAP
-  loadImage(0, fb + FB_SIZE);
-  gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE, gfx->width(), gfx->height());
+  loadImage(0, fb);
+  gfx->draw16bitRGBBitmap(0, 0, fb, gfx->width(), gfx->height());
 
   // Fill cache for previous/next image
-  loadImage(-1, fb);
-  loadImage(1, fb + 2 * FB_SIZE);
+  // loadImage(-1, fb);
+  // loadImage(1, fb + 2 * FB_SIZE);
 
   Serial.print("FAT type:   ");
   sd.printFatType(&Serial);
@@ -311,86 +348,10 @@ void setup() {
   lastY = -1;
 }
 
-void loop() { delay(1); }
-
-// void loop() {
-
-//   if (bbct.getSamples(&ti)) {
-//     for (int i = 0; i < ti.count; i++) {
-//       Serial.print("Touch ");
-//       Serial.print(i + 1);
-//       Serial.print(": ");
-//       Serial.print("  x: ");
-//       Serial.print(ti.x[i]);
-//       Serial.print("  y: ");
-//       Serial.println(ti.y[i]);
-//       if (lastY >= 0) {
-//         y_offset -= (ti.y[i] - lastY) * (gfx->height() / (float)TOUCH_MAX_Y);
-//         y_offset = y_offset % gfx->height();
-//         Serial.print("Offset: ");
-//         Serial.println(y_offset);
-//         gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + y_offset * gfx->width(), gfx->width(), gfx->height());
-//       }
-//       lastY = ti.y[i];
-//       timer = millis();
-//     }
-//   } else {
-//     // Touch ended so scroll to the nearest image
-//     if (y_offset != 0) {
-//       if (y_offset < -gfx->height() / 2) {
-//         Serial.println("Going Back");
-//         for (int16_t i = y_offset - (y_offset % 16); i >= -gfx->height(); i -= 16) {
-//           gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + i * gfx->width(), gfx->width(), gfx->height());
-//         }
-//         memcpy(fb + 2 * FB_SIZE, fb + FB_SIZE, FB_SIZE * sizeof(uint16_t));
-//         memcpy(fb + FB_SIZE, fb, FB_SIZE * sizeof(uint16_t));
-//         currentIndex--;
-//         loadImage(currentIndex - 1, fb);
-//       } else if (y_offset < 0) {
-//         Serial.println("Stay forward");
-//         for (int16_t i = y_offset + (16 - (y_offset % 16)); i <= 0; i += 16) {
-//           gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + i * gfx->width(), gfx->width(), gfx->height());
-//         }
-//       } else if (y_offset < gfx->height() / 2) {
-//         Serial.println("Stay back");
-//         for (int16_t i = y_offset - (y_offset % 16); i >= 0; i -= 16) {
-//           gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + i * gfx->width(), gfx->width(), gfx->height());
-//         }
-//       } else {
-//         Serial.println("Going forward");
-//         for (int16_t i = y_offset + (16 - (y_offset % 16)); i <= gfx->height(); i += 16) {
-//           gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + i * gfx->width(), gfx->width(), gfx->height());
-//         }
-//         memcpy(fb, fb + FB_SIZE, FB_SIZE * sizeof(uint16_t));
-//         memcpy(fb + FB_SIZE, fb + 2 * FB_SIZE, FB_SIZE * sizeof(uint16_t));
-//         currentIndex++;
-//         loadImage(currentIndex + 1, fb + 2 * FB_SIZE);
-//       }
-//       timer = millis();
-//     }
-//     y_offset = 0;
-//     lastY = -1;
-//   }
-
-//   // Next image after 10 seconds or if button is pressed
-//   if ((millis() - timer > 10 * 1000) || (digitalRead(0) == LOW)) {
-//     for (int16_t i = 0; i <= gfx->height(); i += 16) {
-//       gfx->draw16bitRGBBitmap(0, 0, fb + FB_SIZE + i * gfx->width(), gfx->width(), gfx->height());
-//     }
-//     memcpy(fb, fb + FB_SIZE, FB_SIZE * sizeof(uint16_t));
-//     memcpy(fb + FB_SIZE, fb + 2 * FB_SIZE, FB_SIZE * sizeof(uint16_t));
-//     currentIndex++;
-//     loadImage(currentIndex + 1, fb + 2 * FB_SIZE);
-//     timer = millis();
-//   } else {
-//     delay(50);
-//   }
-
-//   if (currentIndex < 0) {
-//     // Going backwards
-//     currentIndex += fileCount;
-//   } else if (currentIndex >= fileCount) {
-//     // Starting from the beginning again
-//     currentIndex -= fileCount;
-//   }
-// }
+void loop() {
+  delay(5000);
+  gfx->fillScreen(BLACK);
+  delay(5000);
+  loadImageFiles(0, fb, "octotat.jpg");
+  gfx->draw16bitRGBBitmap(0, 0, fb, gfx->width(), gfx->height());
+}
